@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather Forecast Graph</title>
+  <style>
+    /* Reset and base */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      color: #222;
+    }
+    h1 {
+      margin-bottom: 20px;
+      text-align: center;
+      color: #fff;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    }
+    form {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      margin-bottom: 20px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px 0 0 4px;
+      outline: none;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      background-color: #0077ff;
+      color: white;
+      cursor: pointer;
+      border-radius: 0 4px 4px 0;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #005bb5;
+    }
+    #errorMessage {
+      color: #ff4444;
+      margin-bottom: 20px;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    .chart-container {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 700px;
+    }
+    canvas {
+      width: 100% !important;
+      height: 350px !important;
+    }
+    /* Responsive */
+    @media (max-width: 480px) {
+      form {
+        flex-direction: column;
+      }
+      input[type="text"], button {
+        border-radius: 4px;
+      }
+      button {
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Weather Forecast Graph</h1>
+
+  <form id="weatherForm" aria-label="Weather search form">
+    <input type="text" id="cityInput" placeholder="Enter city name" aria-label="City name" required />
+    <button type="submit">Get Forecast</button>
+  </form>
+
+  <div id="errorMessage" role="alert" aria-live="assertive"></div>
+
+  <div class="chart-container">
+    <canvas id="weatherChart" aria-label="Weather temperature chart" role="img"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const apiKey = 'c78a83b10fac5391bc10d40dcaca8c63'; // Replace with your OpenWeatherMap API key
+    const form = document.getElementById('weatherForm');
+    const cityInput = document.getElementById('cityInput');
+    const errorMessage = document.getElementById('errorMessage');
+    const ctx = document.getElementById('weatherChart').getContext('2d');
+
+    let weatherChart = null;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const city = cityInput.value.trim();
+      if (!city) return;
+
+      errorMessage.textContent = '';
+      try {
+        const data = await fetchWeatherForecast(city);
+        const { labels, temps } = processForecastData(data);
+        renderChart(labels, temps, city);
+      } catch (error) {
+        errorMessage.textContent = error.message;
+        if (weatherChart) {
+          weatherChart.destroy();
+          weatherChart = null;
+        }
+      }
+    });
+
+    async function fetchWeatherForecast(city) {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&units=metric&appid=${apiKey}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('City not found or API error');
+      }
+      return response.json();
+    }
+
+    function processForecastData(data) {
+      const labels = data.list.map(item => {
+        const date = new Date(item.dt * 1000);
+        return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:00`;
+      });
+
+      const temps = data.list.map(item => item.main.temp);
+
+      return { labels, temps };
+    }
+
+    function renderChart(labels, temps, city) {
+      if (weatherChart) {
+        weatherChart.destroy();
+      }
+
+      weatherChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `Temperature (°C) in ${city}`,
+            data: temps,
+            borderColor: 'rgba(54, 162, 235, 0.8)',
+            backgroundColor: 'rgba(54, 162, 235, 0.3)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+          }]
+        },
+        options: {
+          responsive: true,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#222',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                }
+              }
+            },
+            tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              titleFont: { size: 16, weight: 'bold' },
+              bodyFont: { size: 14 }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxRotation: 90,
+                minRotation: 45,
+                maxTicksLimit: 10,
+                color: '#222',
+                font: {
+                  size: 12
+                }
+              },
+              grid: {
+                color: 'rgba(0,0,0,0.05)'
+              }
+            },
+            y: {
+              beginAtZero: false,
+              title: {
+                display: true,
+                text: 'Temperature (°C)',
+                color: '#222',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                }
+              },
+              ticks: {
+                color: '#222',
+                font: {
+                  size: 12
+                }
+              },
+              grid: {
+                color: 'rgba(0,0,0,0.1)'
+              }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
